@@ -338,6 +338,14 @@ class NoSIPKeyframe(JSONObject):
     peer = BooleanProperty(optional=True)  # send a PLI to the plain RTP side
 
 
+class SIPTransfer(JSONObject):
+    # Sends a REFER for the call on this handle. 'replace' is the Call-ID of
+    # another call in Janus (attended transfer: Janus adds the Replaces).
+    request = FixedValueProperty('transfer')
+    uri = StringProperty(validator=URIValidator())
+    replace = StringProperty(optional=True)
+
+
 # Videoroom plugin messages (to be used as body for MessageRequest for videoroom plugin messages)
 
 class VideoroomCreate(JSONObject):
@@ -647,6 +655,19 @@ class SIPResultDTMFSent(JSONObject):
     event = FixedValueProperty('dtmfsent')
 
 
+class SIPResultTransferring(JSONObject):
+    event = FixedValueProperty('transferring')
+
+
+class SIPResultNotify(JSONObject):
+    # NOTIFY within a subscription; for our own REFER, notify='refer' and
+    # content is a message/sipfrag status line such as 'SIP/2.0 200 OK'.
+    event = FixedValueProperty('notify')
+    notify = StringProperty(optional=True)
+    substate = StringProperty(optional=True)
+    content = StringProperty(optional=True)
+
+
 # Data messages
 
 class SIPErrorEvent(SIPPluginData):
@@ -849,6 +870,17 @@ class NoSIPHangingUpEvent(NoSIPPluginData):
 class NoSIPKeyframeSentEvent(NoSIPPluginData):
     nosip = FixedValueProperty('event')
     result = ObjectProperty(NoSIPResultKeyframeSent)  # type: NoSIPResultKeyframeSent
+
+
+class SIPTransferringEvent(SIPPluginData):
+    sip = FixedValueProperty('event')
+    result = ObjectProperty(SIPResultTransferring)        # type: SIPResultTransferring
+
+
+class SIPNotifyEvent(SIPPluginData):
+    sip = FixedValueProperty('event')
+    call_id = StringProperty(optional=True)
+    result = ObjectProperty(SIPResultNotify)              # type: SIPResultNotify
 
 
 # Videoroom plugin data messages
