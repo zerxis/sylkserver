@@ -354,6 +354,12 @@ class SIPPluginHandle(JanusPluginHandle):
     def send_message(self, **message):
         self.message(janus.SIPMessage(**message))
 
+    def transfer(self, uri, replace=None):
+        parameters = {'uri': uri}
+        if replace is not None:
+            parameters['replace'] = replace
+        self.message(janus.SIPTransfer(**parameters))
+
     def send_dtmf_info(self, digit, duration=None):
         parameters = {'digit': digit}
         if duration is not None:

@@ -66,6 +66,16 @@ from .storage import MessageStorage, TokenStorage
 _SIP_URI_RE = re.compile(r'^sips?:[^\s@]+@[^\s@]+$')
 
 
+def parse_sipfrag(content):
+    """Status code and reason from a message/sipfrag body ('SIP/2.0 200 OK')."""
+    if not content:
+        return None, None
+    parts = content.strip().split(None, 2)
+    if len(parts) < 2 or not parts[0].upper().startswith('SIP/') or not parts[1].isdigit():
+        return None, None
+    return int(parts[1]), (parts[2].strip() if len(parts) > 2 else '')
+
+
 def _is_bridge_uri(uri):
     """True if a SIP URI identifies the sylk-janus-audio-bridge.
 
@@ -2591,6 +2601,29 @@ class ConnectionHandler(object):
         session_info.janus_handle.send_dtmf_info(digit=request.digit, duration=duration)
         self.log.debug('{session.direction} session {session.id} send DTMF INFO {digit} {duration}'.format(session=session_info, digit=request.digit, duration=duration))
 
+    def _RH_session_transfer(self, request):
+        try:
+            session_info = self.sip_sessions[request.session]
+        except KeyError:
+            raise APIError('Unknown session {request.session}'.format(request=request))
+
+        if session_info.state not in ('established', 'accepted'):
+            raise APIError('Invalid state for transferring session {session.id}: {session.state}'.format(session=session_info))
+
+        replace = None
+        if request.replace_session is not None:
+            try:
+                replaced = self.sip_sessions[request.replace_session]
+            except KeyError:
+                raise APIError('Unknown session {request.replace_session}'.format(request=request))
+            if replaced.state not in ('established', 'accepted') or not replaced.call_id:
+                raise APIError('Session {session.id} cannot be replaced yet: {session.state}'.format(session=replaced))
+            replace = replaced.call_id
+
+        session_info.janus_handle.transfer(uri=request.uri, replace=replace)
+        self.log.info('{session.direction} session {session.id} {kind} transfer to {uri}'.format(
+            session=session_info, kind='attended' if replace else 'blind', uri=request.uri))
+
     def _RH_videoroom_join(self, request):
         if request.session in self.videoroom_sessions:
             raise APIError('Session ID {request.session} already in use'.format(request=request))
@@ -3773,6 +3806,35 @@ class ConnectionHandler(object):
 
     def _EH_janus_sip_event_dtmfsent(self, event):
         pass
+
+    def _EH_janus_sip_event_transferring(self, event):
+        try:
+            session_info = self.sip_sessions[event.sender]
+        except KeyError:
+            return
+        self.send(sylkrtc.SessionTransferEvent(session=session_info.id, state='started'))
+
+    def _EH_janus_sip_event_notify(self, event):
+        # Only the NOTIFYs of a REFER we sent (session-transfer) are relayed.
+        data = event.plugindata.data.result
+        if data.notify != 'refer':
+            return
+        try:
+            session_info = self.sip_sessions[event.sender]
+        except KeyError:
+            return
+        code, reason = parse_sipfrag(data.content)
+        if code is None:
+            return
+        if code < 200:
+            state = 'progress'
+        elif code < 300:
+            state = 'completed'
+        else:
+            state = 'failed'
+        self.send(sylkrtc.SessionTransferEvent(session=session_info.id, state=state, code=code, reason=reason))
+        self.log.info('{session.direction} session {session.id} transfer {state} ({code} {reason})'.format(
+            session=session_info, state=state, code=code, reason=reason))
 
     def _EH_janus_videoroom(self, event):
         if isinstance(event, janus.PluginEvent):

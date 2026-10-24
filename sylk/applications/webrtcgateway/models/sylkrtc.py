@@ -412,6 +412,15 @@ class SessionTerminatedEvent(SessionStateEvent):
     call_id = StringProperty(optional=True)
 
 
+class SessionTransferEvent(SessionEventBase):
+    # Progress of a session-transfer: 'started' once the REFER is sent, then
+    # the transferee's NOTIFYs. code/reason come from their sipfrag.
+    event = FixedValueProperty('transfer')
+    state = LimitedChoiceProperty(['started', 'progress', 'completed', 'failed'])
+    code = IntegerProperty(optional=True)
+    reason = StringProperty(optional=True)
+
+
 class SessionUpdateEvent(SessionEventBase):
     event = FixedValueProperty('update')
     state = LimitedChoiceProperty(['received', 'accepted', 'failed'])
@@ -848,6 +857,15 @@ class SessionDtmfInfoRequest(SessionRequestBase):
     sylkrtc = FixedValueProperty('session-dtmf-info')
     digit = StringProperty()
     duration = IntegerProperty(optional=True)
+
+
+class SessionTransferRequest(SessionRequestBase):
+    # Transfer the call by SIP REFER. Blind when replace_session is absent;
+    # attended when it names another of this connection's sessions, whose
+    # call the transferee should replace.
+    sylkrtc = FixedValueProperty('session-transfer')
+    uri = StringProperty(validator=AORValidator())
+    replace_session = StringProperty(optional=True)
 
 
 # Videoroom request models
