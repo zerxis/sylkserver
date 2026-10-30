@@ -34,8 +34,11 @@ class AuthHandler(object):
     def _authenticate(self, proxy):
         if self.auth_conf.auth_type == 'SIP':
             # for sip to continue we need to apply a ha1 hash
+            # hashlib needs bytes on Python 3: passing the str raised TypeError
+            # in this green thread, so no account ever finished registering
+            # with external auth enabled.
             self.account_info.password = md5('{u}:{d}:{p}'.format(
-                    u=self.user,d=self.domain,p=self.password)).hexdigest()
+                    u=self.user,d=self.domain,p=self.password).encode()).hexdigest()
             return (True, proxy)
         elif self.auth_conf.auth_type == 'IMAP':
             try:
