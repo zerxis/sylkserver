@@ -6,6 +6,7 @@ import urllib.parse
 import re
 import os
 import random
+import secrets
 import time
 import uuid
 from collections import deque
@@ -2351,6 +2352,43 @@ class ConnectionHandler(object):
                        message_id=message_id)
         self.log.messaging.debug('sending IMDN {status} message {message_id} to {uri}'.format(status=state, message_id=message_id, uri=uri))
         self._send_sip_message(account_info, uri, str(uuid.uuid4()), content, IMDNDocument.content_type, add_disposition=False)
+
+    def _RH_account_api_token(self, request):
+        """The account's API token, over this authenticated WebSocket.
+
+        The same token application/sylk-api-token issues over SIP (and the
+        same storage, so a client can hold either): it authorises file
+        uploads and the message history API. Over SIP it cannot reach a
+        client registered through this gateway: the reply MESSAGE is routed
+        back here and dropped by the loop guard in sip_handlers.
+
+        Only for an account whose SIP registration succeeded on this
+        connection: with SIP external auth, auth_state is set before any
+        password is checked, so it proves nothing on its own.
+        """
+        try:
+            account_info = self.accounts_map[request.account]
+        except KeyError:
+            raise APIError('Unknown account specified: {request.account}'.format(request=request))
+        if account_info.registration_state != 'registered':
+            raise APIError('Account not registered')
+
+        storage = MessageStorage()
+
+        def send_token(existing_token=None):
+            # Re-send a stored token rather than minting one: a new token revokes
+            # the old one, and the account's other devices may hold it.
+            token = existing_token or secrets.token_urlsafe()
+            if not existing_token:
+                storage.add_account(account_info.id)
+            storage.add_account_token(account=account_info.id, token=token)  # refreshes its TTL
+            self.send(sylkrtc.AccountApiTokenEvent(account=account_info.id, token=token))
+
+        existing = storage.get_account_token(account_info.id)
+        if isinstance(existing, defer.Deferred):
+            existing.addCallback(send_token)
+        else:
+            send_token(existing)
 
     def _RH_account_sync_conversations(self, request):
         try:

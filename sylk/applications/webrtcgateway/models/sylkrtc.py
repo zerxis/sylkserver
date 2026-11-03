@@ -326,6 +326,11 @@ class AccountDispositionNotificationEvent(AccountEventBase):
     reason = StringProperty()
 
 
+class AccountApiTokenEvent(AccountEventBase):
+    event = FixedValueProperty('api-token')
+    token = StringProperty()
+
+
 class AccountSyncConversationsEvent(AccountEventBase):
     event = FixedValueProperty('sync-conversations')
     messages = ArrayProperty(ContactMessages)
@@ -813,6 +818,10 @@ class AccountDispositionNotificationRequest(AccountRequestBase):
     message_id = StringProperty()
     state = LimitedChoiceProperty(['delivered', 'failed', 'displayed', 'forbidden', 'error'])
     timestamp = StringProperty()
+
+
+class AccountApiTokenRequest(AccountRequestBase):
+    sylkrtc = FixedValueProperty('account-api-token')
 
 
 class AccountSyncConversationsRequest(AccountRequestBase):
