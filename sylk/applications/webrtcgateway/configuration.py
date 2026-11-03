@@ -219,6 +219,11 @@ class GeneralConfig(ConfigSection):
     xcap_url = ConfigSetting(type=URL, value='')
     local_sip_messages = False
     filetransfer_expire_days = 15
+    # Behind a reverse proxy every client has the proxy's address, so "a WebSocket
+    # session from the uploader's IP holds the sender account" is true for anyone
+    # whenever the sender is connected at all. When set, uploads must always carry
+    # the sender's API token (Authorization: Apikey <token>).
+    filetransfer_require_api_token = False
 
 
 class JanusConfig(ConfigSection):
