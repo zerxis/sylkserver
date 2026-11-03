@@ -303,6 +303,12 @@ class GeneralConfig(ConfigSection):
     sip_backend_accounts = ConfigSetting(type=SIPBackendMap, value=SIPBackendMap(''))
     sip_backend_override = False
 
+    # Behind a reverse proxy every client has the proxy's address, so "a WebSocket
+    # session from the uploader's IP holds the sender account" is true for anyone
+    # whenever the sender is connected at all. When set, uploads must always carry
+    # the sender's API token (Authorization: Apikey <token>).
+    filetransfer_require_api_token = False
+
 
 class JanusConfig(ConfigSection):
     __cfgfile__ = 'webrtcgateway.ini'
