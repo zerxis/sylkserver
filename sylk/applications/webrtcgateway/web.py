@@ -199,6 +199,11 @@ class WebRTCGatewayWeb(object, metaclass=Singleton):
                 d1.addCallback(lambda result: self._handle_lookup_result(result, transfer_data, sender_connection))
                 return d1
 
+            if GeneralConfig.filetransfer_require_api_token:
+                # Behind a proxy the address match above proves nothing (every
+                # client shares the proxy's address): only the token counts.
+                sender_connection = False
+
             if sender_connection:
                 # A WebSocket session from this address already speaks for
                 # the sender, which is how every browser and mobile client
