@@ -4636,7 +4636,9 @@ class ConnectionHandler(object):
             return
 
         message = notification.data
-        self.log.messaging.info('received {content_type} message {message_id} from {originator.uri}'.format(message_id=message.message_id, content_type=message.content_type, originator=message.sender))
+        # Typing notifications come every few seconds while someone types
+        log = self.log.messaging.debug if message.content_type == 'application/im-iscomposing+xml' else self.log.messaging.info
+        log('received {content_type} message {message_id} from {originator.uri}'.format(message_id=message.message_id, content_type=message.content_type, originator=message.sender))
         self.send(message)
 
     def _NH_SIPApplicationGotOutgoingAccountMessage(self, notification):

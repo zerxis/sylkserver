@@ -526,15 +526,13 @@ class MessageHandler(object):
         notification_center.post_notification(name='SIPApplicationGotOutgoingAccountMessage', sender=account.account, data=message)
 
     def _store_message_for_receiver(self, account):
-        ignored_content_types = ("application/im-iscomposing+xml",)
-        if self.parsed_message.content_type in ignored_content_types:
-            return
-
         # Delivered live to the account's WebSocket clients (Sylk mobile,
-        # sylk-desktop), never journalled: an offline device re-lists the
-        # storage instead (docs/CONTACT-AVATARS.md in Blink). Returning early
-        # here, as for is-composing, kept it from the WebSocket clients too.
-        unjournaled_content_types = ('application/sylk-storage-changed',)
+        # sylk-desktop), never journalled. sylk-storage-changed: an offline
+        # device re-lists the storage instead (docs/CONTACT-AVATARS.md in
+        # Blink). is-composing (RFC 3994): only meaningful while it is fresh,
+        # so it is neither stored nor pushed; returning early for it, as this
+        # used to, kept typing notifications from reaching the clients at all.
+        unjournaled_content_types = ('application/sylk-storage-changed', 'application/im-iscomposing+xml')
 
         if account is None:
             messaging_log.debug('not storing %s message from %s to non-existent account %s' % (self.parsed_message.content_type, self.from_header.uri, '%s@%s' % (self.to_header.uri.user, self.to_header.uri.host)))
