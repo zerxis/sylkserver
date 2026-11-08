@@ -2981,7 +2981,11 @@ class ConnectionHandler(object):
                 raise APIError('Session {session.id} cannot be replaced yet: {session.state}'.format(session=replaced))
             replace = replaced.call_id
 
-        session_info.janus_handle.transfer(uri=request.uri, replace=replace)
+        # REFER is sent by the Janus SIP plugin; the sipsimple backend has no transfer yet.
+        transfer = getattr(session_info.janus_handle, 'transfer', None)
+        if transfer is None:
+            raise APIError('Transfer is not supported by the SIP backend of session {session.id}'.format(session=session_info))
+        transfer(uri=request.uri, replace=replace)
         self.log.info('{session.direction} session {session.id} {kind} transfer to {uri}'.format(
             session=session_info, kind='attended' if replace else 'blind', uri=request.uri))
 
@@ -4168,26 +4172,13 @@ class ConnectionHandler(object):
                                                                      message_timestamp=str(timestamp),
                                                                      timestamp=str(ISOTimestamp.now())))
 
-    def _EH_janus_sip_event_dtmfsent(self, event):
-        pass
-
-    def _EH_janus_sip_event_transferring(self, event):
-        try:
-            session_info = self.sip_sessions[event.sender]
-        except KeyError:
+    def sip_session_transfer(self, session_info, notify_content=None):
+        # Called by the Janus SIP backend: 'transferring' (no content) when the
+        # REFER we sent was accepted, then each NOTIFY's sipfrag as it progresses.
+        if notify_content is None:
+            self.send(sylkrtc.SessionTransferEvent(session=session_info.id, state='started'))
             return
-        self.send(sylkrtc.SessionTransferEvent(session=session_info.id, state='started'))
-
-    def _EH_janus_sip_event_notify(self, event):
-        # Only the NOTIFYs of a REFER we sent (session-transfer) are relayed.
-        data = event.plugindata.data.result
-        if data.notify != 'refer':
-            return
-        try:
-            session_info = self.sip_sessions[event.sender]
-        except KeyError:
-            return
-        code, reason = parse_sipfrag(data.content)
+        code, reason = parse_sipfrag(notify_content)
         if code is None:
             return
         if code < 200:

@@ -99,13 +99,27 @@ except h.APIError:
 def notify(content, kind='refer'):
     data = SIPDataHandler.decode({'sip': 'event', 'result': {'event': 'notify', 'notify': kind, 'content': content}})
     return SimpleNamespace(sender=101, plugindata=SimpleNamespace(data=data))
-cls._EH_janus_sip_event_notify(fake, notify('SIP/2.0 100 Trying'))
-cls._EH_janus_sip_event_notify(fake, notify('SIP/2.0 200 OK'))
-cls._EH_janus_sip_event_notify(fake, notify('SIP/2.0 403 Forbidden'))
-cls._EH_janus_sip_event_notify(fake, notify('1 message', kind='message-summary'))
+
+# Janus SIP events are handled by the backend (sip_backends/sofia.py), which
+# hands them to the connection handler's sip_session_transfer.
+from sylk.applications.webrtcgateway.sip_backends import sofia
+fake.sip_session_transfer = lambda session_info, notify_content=None: cls.sip_session_transfer(fake, session_info, notify_content)
+backend = SimpleNamespace(handler=fake, _find_session=lambda event, name=None: fake.sip_sessions.get(event.sender))
+sofia.JanusSIPBackend._EH_janus_sip_event_notify(backend, notify('SIP/2.0 100 Trying'))
+sofia.JanusSIPBackend._EH_janus_sip_event_notify(backend, notify('SIP/2.0 200 OK'))
+sofia.JanusSIPBackend._EH_janus_sip_event_notify(backend, notify('SIP/2.0 403 Forbidden'))
+sofia.JanusSIPBackend._EH_janus_sip_event_notify(backend, notify('1 message', kind='message-summary'))
 check('notify -> transfer events', [(e.state, e.code) for e in sent] == [('progress', 100), ('completed', 200), ('failed', 403)])
-cls._EH_janus_sip_event_transferring(fake, SimpleNamespace(sender=101))
+sofia.JanusSIPBackend._EH_janus_sip_event_transferring(backend, SimpleNamespace(sender=101))
 check('transferring -> started', sent[-1].state == 'started' and sent[-1].session == 's1')
+
+# the sipsimple backend's NoSIP handle has no transfer(): refused, not a crash
+a.state = 'established'
+a.janus_handle = SimpleNamespace()
+try:
+    cls._RH_session_transfer(fake, sylkrtc.SessionTransferRequest(transaction='t', session='s1', uri='1@x.y')); check('no transfer on backend', False)
+except h.APIError:
+    check('backend without transfer -> APIError', True)
 
 print('%d failures' % failures)
 raise SystemExit(1 if failures else 0)

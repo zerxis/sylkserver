@@ -371,3 +371,18 @@ class JanusSIPBackend(SIPBackend):
 
     def _EH_janus_sip_event_dtmfsent(self, event):
         pass
+
+    def _EH_janus_sip_event_transferring(self, event):
+        # Our REFER (session-transfer) was accepted by the peer
+        session_info = self._find_session(event, 'transferring')
+        if session_info is not None:
+            self.handler.sip_session_transfer(session_info)
+
+    def _EH_janus_sip_event_notify(self, event):
+        # Only the NOTIFYs for a REFER we sent (session-transfer) are relayed
+        data = event.plugindata.data.result
+        if data.notify != 'refer':
+            return
+        session_info = self._find_session(event, 'notify')
+        if session_info is not None:
+            self.handler.sip_session_transfer(session_info, notify_content=data.content or '')
